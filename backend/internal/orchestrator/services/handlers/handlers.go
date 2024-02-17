@@ -65,3 +65,24 @@ func (h *Handler) GetExpressionsList(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(exprs)
 }
+
+func (h *Handler) GetExpressionByID(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
+		return
+	}
+	exprId := r.URL.Query().Get("expressionId")
+	result, err := h.conn.GetExpressionByID(r.Context(), exprId)
+	res := struct {
+		ExpressionId string      `json:"expressionId"`
+		Res          interface{} `json:"result"`
+	}{Res: result, ExpressionId: exprId}
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		slog.Warn(err.Error())
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(res)
+}

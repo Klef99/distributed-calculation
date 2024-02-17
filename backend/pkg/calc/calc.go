@@ -5,6 +5,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 	"unicode"
 
 	"github.com/google/uuid"
@@ -12,12 +13,29 @@ import (
 
 type Operation struct {
 	ExpressionID string
-	operator     string
-	v1           interface{}
-	v2           interface{}
-	operationID  string
-	parentID     string
-	left         bool
+	Operator     string
+	V1           interface{}
+	V2           interface{}
+	OperationID  string
+	ParentID     string
+	Left         bool
+	Status       int
+}
+
+func (op Operation) Task() float64 {
+	operTimeout := map[string]time.Duration{"+": time.Second * 2, "-": time.Second * 1, "*": time.Second * 3, "/": time.Second * 4}
+	time.Sleep(operTimeout[op.Operator])
+	switch op.Operator {
+	case "+":
+		return op.V1.(float64) + op.V2.(float64)
+	case "-":
+		return op.V1.(float64) - op.V2.(float64)
+	case "/":
+		return op.V1.(float64) / op.V2.(float64)
+	case "*":
+		return op.V1.(float64) * op.V2.(float64)
+	}
+	panic("unreachable operator")
 }
 
 func precedence(operator rune) int {
@@ -93,11 +111,10 @@ func IsOperation(t interface{}) bool {
 	return false
 }
 
-func TransformExpressionToStack(expression string) []Operation {
+func TransformExpressionToStack(expressionID, expression string) []Operation {
 	tokens := strings.Split(infixToPostfix(expression), " ")
 	opers := make([]interface{}, 0)
 	tasks := make([]Operation, 0)
-	expressionID := uuid.New().String()[:3]
 	for i := 0; i < len(tokens); i++ {
 		if v, err := strconv.ParseFloat(tokens[i], 64); err == nil {
 			opers = append(opers, v)
@@ -108,13 +125,13 @@ func TransformExpressionToStack(expression string) []Operation {
 			v1 := opers[len(opers)-2]
 			v2 := opers[len(opers)-1]
 			opers = opers[:len(opers)-2]
-			task := Operation{operator: tokens[i], operationID: uuid.New().String()[:3], ExpressionID: expressionID}
+			task := Operation{Operator: tokens[i], OperationID: uuid.New().String(), ExpressionID: expressionID, ParentID: expressionID, Status: 0}
 			if IsOperation(v1) {
 				v1, _ := v1.(Operation)
-				v1.parentID = task.operationID
-				v1.left = true
+				v1.ParentID = task.OperationID
+				v1.Left = true
 				for i := 0; i < len(tasks); i++ {
-					if v1.operationID == tasks[i].operationID {
+					if v1.OperationID == tasks[i].OperationID {
 						tasks[i] = v1
 						break
 					}
@@ -122,27 +139,27 @@ func TransformExpressionToStack(expression string) []Operation {
 			}
 			if IsOperation(v2) {
 				v2, _ := v2.(Operation)
-				v2.parentID = task.operationID
-				v2.left = false
+				v2.ParentID = task.OperationID
+				v2.Left = false
 				for i := 0; i < len(tasks); i++ {
-					if v2.operationID == tasks[i].operationID {
+					if v2.OperationID == tasks[i].OperationID {
 						tasks[i] = v2
 						break
 					}
 				}
 			}
-			task.v1 = v1
-			task.v2 = v2
+			task.V1 = v1
+			task.V2 = v2
 			opers = append(opers, task)
 			tasks = append(tasks, task)
 		}
 	}
 	for i := 0; i < len(tasks); i++ {
-		if IsOperation(tasks[i].v1) {
-			tasks[i].v1 = nil
+		if IsOperation(tasks[i].V1) {
+			tasks[i].V1 = nil
 		}
-		if IsOperation(tasks[i].v2) {
-			tasks[i].v2 = nil
+		if IsOperation(tasks[i].V2) {
+			tasks[i].V2 = nil
 		}
 	}
 	return tasks

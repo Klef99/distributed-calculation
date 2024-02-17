@@ -1,16 +1,24 @@
 package pool
 
-import "sync"
+import (
+	"sync"
+
+	"github.com/klef99/distributed-calculation-backend/pkg/calc"
+)
 
 // Worker Интерфейс надо реализовать объектам, которые будут обрабатываться параллельно
 type Worker interface {
-	Task()
+	Task() float64
 }
 
 // Pool Пул для выполнения
 type Pool struct {
 	// из этого канала будем брать задачи для обработки
-	tasks chan Worker
+	tasks   chan Worker
+	Results chan struct {
+		OperationID string
+		Res         float64
+	}
 	// для синхронизации работы
 	wg sync.WaitGroup
 }
@@ -19,6 +27,10 @@ type Pool struct {
 func New(maxGoroutines int) *Pool {
 	p := Pool{
 		tasks: make(chan Worker), // канал, откуда брать задачи
+		Results: make(chan struct {
+			OperationID string
+			Res         float64
+		}),
 	}
 	// для ожидания завершения
 	p.wg.Add(maxGoroutines)
@@ -28,9 +40,13 @@ func New(maxGoroutines int) *Pool {
 			// забираем задачи из канала
 			for w := range p.tasks {
 				// и выполняем
-				w.Task()
+				operationID := w.(calc.Operation).OperationID
+				res := w.Task()
+				p.Results <- struct {
+					OperationID string
+					Res         float64
+				}{OperationID: operationID, Res: res}
 			}
-			// post в бд
 			// после закрытия канала нужно оповестить наш пул
 			p.wg.Done()
 		}()
@@ -49,4 +65,5 @@ func (p *Pool) Shutdown() {
 	close(p.tasks)
 	// дождемся завершения работы уже запущенных задач
 	p.wg.Wait()
+	close(p.Results)
 }
