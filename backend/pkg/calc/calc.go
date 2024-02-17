@@ -20,6 +20,7 @@ type Operation struct {
 	ParentID     string
 	Left         bool
 	Status       int
+	Result       interface{}
 }
 
 func (op Operation) Task() float64 {

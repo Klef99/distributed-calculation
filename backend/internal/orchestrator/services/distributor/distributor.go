@@ -92,9 +92,53 @@ func (d *Distributor) GetOperationResult() {
 	}
 }
 
-func (d *Distributor) UpdateOperations(tick time.Duration){
+func (d *Distributor) UpdateOperations(tick time.Duration) {
 	ticker := time.NewTicker(tick)
-	for range ticker.C{
-		
+	for range ticker.C {
+		operations, err := d.PostgresConn.GetComplitedOperation(context.Background())
+		if err != nil {
+			slog.Warn(err.Error())
+			continue
+		}
+		opList := make([]struct {
+			Operationid string
+			Parentid    string
+			Res         float64
+			Left        bool
+		}, 0)
+		var notFinalOperations = make([]calc.Operation, 0)
+		for _, operation := range operations {
+			if operation.ExpressionID == operation.ParentID {
+				err := d.PostgresConn.SetExpressionResult(context.Background(), operation.ExpressionID, operation.Result.(float64))
+				if err != nil {
+					slog.Warn(err.Error())
+					continue
+				}
+				err = d.PostgresConn.ChangeExpressionStatus(context.Background(), operation.ExpressionID, 2)
+				if err != nil {
+					slog.Warn(err.Error())
+					continue
+				}
+				continue
+			}
+			op := struct {
+				Operationid string
+				Parentid    string
+				Res         float64
+				Left        bool
+			}{Operationid: operation.OperationID, Left: operation.Left, Parentid: operation.ParentID, Res: operation.Result.(float64)}
+			opList = append(opList, op)
+			notFinalOperations = append(notFinalOperations, operation)
+		}
+		err = d.PostgresConn.SetOperationResultToParent(context.Background(), opList)
+		if err != nil {
+			slog.Warn(err.Error())
+			continue
+		}
+		err = d.PostgresConn.BulkChangeStatusOperations(context.Background(), 2, notFinalOperations)
+		if err != nil {
+			slog.Warn(err.Error())
+			continue
+		}
 	}
 }

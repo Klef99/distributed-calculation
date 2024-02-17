@@ -27,6 +27,7 @@ func Run() {
 	go d.NewOperations(2 * time.Second)
 	go d.SendOperations(2 * time.Second)
 	go d.GetOperationResult()
+	go d.UpdateOperations(2 * time.Second)
 	router.HandleFunc("/addExpression", h.AddExpression)
 	router.HandleFunc("/getExpressionsList", h.GetExpressionsList)
 	router.HandleFunc("/getExpressionByID", h.GetExpressionByID)

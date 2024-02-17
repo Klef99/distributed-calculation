@@ -160,7 +160,7 @@ func (c *Connection) BulkInsertOperations(ctx context.Context, tasks []calc.Oper
 		if err != nil {
 			var pgErr *pgconn.PgError
 			if errors.As(err, &pgErr) && pgErr.Code == pgerrcode.UniqueViolation {
-				slog.Info("operation %s already exists", task.OperationID)
+				slog.Info(fmt.Sprintf("operation %s already exists", task.OperationID))
 				continue
 			}
 			slog.Info(fmt.Sprint(task.ExpressionID, task.OperationID, task.ParentID))
@@ -180,7 +180,7 @@ func (c *Connection) ChangeExpressionStatus(ctx context.Context, expressionid st
 	if err != nil {
 		return fmt.Errorf("unable to update row: %w", err)
 	}
-	slog.Info("Changed expression (%s) status to %d", expressionid, status)
+	slog.Info(fmt.Sprintf("Changed expression %s status to %d", expressionid, status))
 	return nil
 }
 
@@ -235,6 +235,73 @@ func (c *Connection) SetOperationResult(ctx context.Context, operationid string,
 	if err != nil {
 		return fmt.Errorf("unable to update row: %w", err)
 	}
-	slog.Info("Get operation (%s) result: %d", operationid, result)
+	slog.Info(fmt.Sprintf("Get operation (%s) result: %f", operationid, result))
 	return nil
+}
+
+func (c *Connection) SetExpressionResult(ctx context.Context, expressionid string, result float64) error {
+	query := `UPDATE expressions SET result = @result where expressionid = @expressionid`
+	args := pgx.NamedArgs{
+		"expressionid": expressionid,
+		"result":       result,
+	}
+	_, err := c.conn.Exec(ctx, query, args)
+	if err != nil {
+		return fmt.Errorf("unable to update row: %w", err)
+	}
+	slog.Info(fmt.Sprintf("Get operation (%s) result: %f", expressionid, result))
+	return nil
+}
+
+func (c *Connection) GetComplitedOperation(ctx context.Context) ([]calc.Operation, error) {
+	query := `SELECT operationid, expressionid, parentid, "left", result FROM operations where status = 1 and result is not null`
+	rows, err := c.conn.Query(ctx, query)
+	if err != nil {
+		return []calc.Operation{}, fmt.Errorf("unable to query operations: %w", err)
+	}
+	defer rows.Close()
+	result := []calc.Operation{}
+	for rows.Next() {
+		var res = calc.Operation{}
+		err := rows.Scan(&res.OperationID, &res.ExpressionID, &res.ParentID, &res.Left, &res.Result)
+		if err != nil {
+			return []calc.Operation{}, fmt.Errorf("unable to scan row: %w", err)
+		}
+		result = append(result, res)
+	}
+	return result, nil
+}
+
+func (c *Connection) SetOperationResultToParent(ctx context.Context, opers []struct {
+	Operationid string
+	Parentid    string
+	Res         float64
+	Left        bool
+}) error {
+	batch := &pgx.Batch{}
+	var query string
+	for _, op := range opers {
+		if op.Left {
+			query = `UPDATE operations SET v1 = @result where operationid = @parentid`
+		} else {
+			query = `UPDATE operations SET v2 = @result where operationid = @parentid`
+		}
+		args := pgx.NamedArgs{
+			"operationid": op.Operationid,
+			"result":      op.Res,
+			"parentid":    op.Parentid,
+		}
+		batch.Queue(query, args)
+	}
+	results := c.conn.SendBatch(ctx, batch)
+	defer results.Close()
+	for _, op := range opers {
+		_, err := results.Exec()
+		if err != nil {
+			slog.Info(fmt.Sprint(op.Parentid, op.Left))
+			return fmt.Errorf("unable to update row: %w", err)
+		}
+		slog.Info(fmt.Sprintf("Update %s", op.Operationid))
+	}
+	return results.Close()
 }
