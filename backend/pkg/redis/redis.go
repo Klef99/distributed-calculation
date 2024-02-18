@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/klef99/distributed-calculation-backend/pkg/calc"
 	"github.com/redis/go-redis/v9"
@@ -26,17 +27,41 @@ func CloseConnectionRedis(cr *ConnectionRedis) {
 	defer cr.conn.Close()
 }
 
-// func (cr *ConnectionRedis) SetOperationTimeouts(timeouts map[string]time.Duration) error {
-
-// 	ctx := context.Background()
-// 	for k, v := range
-// 	_, err := cr.conn.HSet(ctx, "operationTimeouts", key, value).Result()
-// 	if err != nil {
-// 		return fmt.Errorf("error while doing HSET command in gredis : %v", err)
-// 	}
-
-// 	return err
-// }
+func (cr *ConnectionRedis) BulkSetOperationsTimeouts(timeouts map[string]int) error {
+	ctx := context.Background()
+	for key, value := range timeouts {
+		flag := true
+		for _, v := range []string{"+", "-", "/", "*"} {
+			if key == v {
+				flag = false
+			}
+		}
+		if flag {
+			continue
+		}
+		err := cr.conn.HSet(ctx, "operationTimeouts", key, value*int(time.Second.Nanoseconds())).Err()
+		if err != nil {
+			return fmt.Errorf("error while doing HSET command in gredis : %v", err)
+		}
+	}
+	return nil
+}
+func (cr *ConnectionRedis) GetOperationsTimeouts() (map[string]time.Duration, error) {
+	ctx := context.Background()
+	cmd := cr.conn.HGetAll(ctx, "operationTimeouts")
+	if cmd.Err() != nil {
+		return map[string]time.Duration{}, cmd.Err()
+	}
+	timeouts := make(map[string]time.Duration, 0)
+	for k, v := range cmd.Val() {
+		t, err := time.ParseDuration(v + "ns")
+		if err != nil {
+			t = time.Second * 10
+		}
+		timeouts[k] = t
+	}
+	return timeouts, nil
+}
 
 func (cr *ConnectionRedis) SendOperationToRedis(operations []calc.Operation) error {
 	for _, operation := range operations {
@@ -69,4 +94,62 @@ func (cr *ConnectionRedis) SendOperationResult(operation struct {
 		return err
 	}
 	return nil
+}
+
+func (cr *ConnectionRedis) SetWorkerStatus(ctx context.Context, worker string, taskCount int) error {
+	err := cr.conn.HSet(ctx, "workers", worker, time.Now().Format(time.RFC3339Nano)).Err()
+	if err != nil {
+		return err
+	}
+	err = cr.conn.HSet(ctx, "workersTaskCount", worker, taskCount).Err()
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (cr *ConnectionRedis) GetWorkersStatus(ctx context.Context) ([]struct {
+	WorkerName string `json:"workerName"`
+	Status     string `json:"status"`
+	TaskCount  string `json:"taskCount"`
+}, error) {
+	workerTime := cr.conn.HGetAll(ctx, "workers")
+	if workerTime.Err() != nil {
+		return []struct {
+			WorkerName string `json:"workerName"`
+			Status     string `json:"status"`
+			TaskCount  string `json:"taskCount"`
+		}{}, workerTime.Err()
+	}
+	workerTaskCount := cr.conn.HGetAll(ctx, "workersTaskCount")
+	if workerTaskCount.Err() != nil {
+		return []struct {
+			WorkerName string `json:"workerName"`
+			Status     string `json:"status"`
+			TaskCount  string `json:"taskCount"`
+		}{}, workerTime.Err()
+	}
+	workerStatus := make([]struct {
+		WorkerName string `json:"workerName"`
+		Status     string `json:"status"`
+		TaskCount  string `json:"taskCount"`
+	}, 0)
+	for k, v := range workerTime.Val() {
+		status := "OK"
+		t, err := time.Parse(time.RFC3339Nano, v)
+		if err != nil {
+			status = "NO RESPONSE"
+		}
+		diff := time.Since(t)
+		if diff > time.Minute {
+			status = "NO RESPONSE"
+		}
+		tmp := struct {
+			WorkerName string `json:"workerName"`
+			Status     string `json:"status"`
+			TaskCount  string `json:"taskCount"`
+		}{WorkerName: k, Status: status, TaskCount: workerTaskCount.Val()[k]}
+		workerStatus = append(workerStatus, tmp)
+	}
+	return workerStatus, nil
 }

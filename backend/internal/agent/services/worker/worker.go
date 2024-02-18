@@ -29,7 +29,11 @@ func (w *Worker) SetOperationsToCalc() {
 		}
 		var operation calc.Operation
 		json.Unmarshal([]byte(msg.Payload), &operation)
-		w.pool.Run(operation)
+		timeouts, err := w.conn.GetOperationsTimeouts()
+		if err != nil {
+			panic(err)
+		}
+		w.pool.Run(operation, timeouts)
 	}
 }
 

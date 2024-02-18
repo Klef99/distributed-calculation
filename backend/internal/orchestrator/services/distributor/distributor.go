@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"log/slog"
+	"sync"
 	"time"
 
 	"github.com/klef99/distributed-calculation-backend/internal/orchestrator/database"
@@ -32,19 +33,33 @@ func (d *Distributor) NewOperations(tick time.Duration) {
 			slog.Info("No rows to seporating")
 			continue
 		}
-		slog.Info("Starting seportion of expression")
+		slog.Info("Starting seporation of expression")
+		wg := &sync.WaitGroup{}
 		for _, row := range rows { // row[0] - expressionId, row[1] - expression
-			tasks := calc.TransformExpressionToStack(row[0], row[1])
-			err := d.PostgresConn.BulkInsertOperations(context.Background(), tasks)
-			if err != nil {
-				slog.Warn(err.Error())
-				continue
-			}
-			err = d.PostgresConn.ChangeExpressionStatus(context.Background(), row[0], 1)
-			if err != nil {
-				slog.Warn(err.Error())
-			}
+			wg.Add(1)
+			go func(row []string) {
+				defer wg.Done()
+				tasks, err := calc.TransformExpressionToStack(row[0], row[1])
+				if err != nil {
+					slog.Warn(err.Error())
+					err = d.PostgresConn.ChangeExpressionStatus(context.Background(), row[0], -1)
+					if err != nil {
+						slog.Warn(err.Error())
+					}
+					return
+				}
+				err = d.PostgresConn.BulkInsertOperations(context.Background(), tasks)
+				if err != nil {
+					slog.Warn(err.Error())
+					return
+				}
+				err = d.PostgresConn.ChangeExpressionStatus(context.Background(), row[0], 1)
+				if err != nil {
+					slog.Warn(err.Error())
+				}
+			}(row)
 		}
+		wg.Wait()
 	}
 }
 
@@ -57,6 +72,21 @@ func (d *Distributor) SendOperations(tick time.Duration) {
 			continue
 		}
 		if len(avalibleOperations) == 0 {
+			continue
+		}
+		workers, err := d.RedisConn.GetWorkersStatus(context.Background())
+		if err != nil {
+			slog.Warn("Avaliable workers not found.")
+		}
+		flag := false
+		for _, w := range workers {
+			if w.Status == "OK" {
+				flag = true
+				break
+			}
+		}
+		if !flag {
+			slog.Warn("Avaliable workers not found.")
 			continue
 		}
 		err = d.RedisConn.SendOperationToRedis(avalibleOperations)
@@ -115,6 +145,11 @@ func (d *Distributor) UpdateOperations(tick time.Duration) {
 					continue
 				}
 				err = d.PostgresConn.ChangeExpressionStatus(context.Background(), operation.ExpressionID, 2)
+				if err != nil {
+					slog.Warn(err.Error())
+					continue
+				}
+				err = d.PostgresConn.ChangeOperationStatus(context.Background(), operation.OperationID, 2)
 				if err != nil {
 					slog.Warn(err.Error())
 					continue

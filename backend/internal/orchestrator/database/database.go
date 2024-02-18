@@ -22,7 +22,7 @@ type Connection struct {
 func Connect() *Connection {
 	connInfo := fmt.Sprintf("host=%s port=%s user=%s "+
 		"password=%s dbname=%s sslmode=disable",
-		"localhost", os.Getenv("POSTGRES_PORT"), os.Getenv("POSTGRES_USER"), os.Getenv("POSTGRES_PASSWORD"), os.Getenv("POSTGRES_DB"))
+		os.Getenv("POSTGRESS_ADDRESS"), os.Getenv("POSTGRES_PORT"), os.Getenv("POSTGRES_USER"), os.Getenv("POSTGRES_PASSWORD"), os.Getenv("POSTGRES_DB"))
 	dbpool, err := pgxpool.New(context.Background(), connInfo)
 	if err != nil {
 		log.Fatal(err)
@@ -54,37 +54,42 @@ func (c *Connection) InsertExpression(ctx context.Context, id, expr string) erro
 }
 
 func (c *Connection) GetExpressions(ctx context.Context) ([]struct {
-	Uuid   string `json:"expressionid"`
-	Expr   string `json:"expression"`
-	Status int    `json:"status"`
+	Uuid   string      `json:"expressionid"`
+	Expr   string      `json:"expression"`
+	Status int         `json:"status"`
+	Result interface{} `json:"result"`
 }, error) {
-	query := `SELECT expressionid, expression, status FROM expressions`
+	query := `SELECT expressionid, expression, status, result FROM expressions`
 	rows, err := c.conn.Query(ctx, query)
 	if err != nil {
 		return []struct {
-			Uuid   string `json:"expressionid"`
-			Expr   string `json:"expression"`
-			Status int    `json:"status"`
+			Uuid   string      `json:"expressionid"`
+			Expr   string      `json:"expression"`
+			Status int         `json:"status"`
+			Result interface{} `json:"result"`
 		}{}, fmt.Errorf("unable to query expressions: %w", err)
 	}
 	defer rows.Close()
 	exprs := []struct {
-		Uuid   string `json:"expressionid"`
-		Expr   string `json:"expression"`
-		Status int    `json:"status"`
+		Uuid   string      `json:"expressionid"`
+		Expr   string      `json:"expression"`
+		Status int         `json:"status"`
+		Result interface{} `json:"result"`
 	}{}
 	for rows.Next() {
 		expr := struct {
-			Uuid   string `json:"expressionid"`
-			Expr   string `json:"expression"`
-			Status int    `json:"status"`
+			Uuid   string      `json:"expressionid"`
+			Expr   string      `json:"expression"`
+			Status int         `json:"status"`
+			Result interface{} `json:"result"`
 		}{}
-		err := rows.Scan(&expr.Uuid, &expr.Expr, &expr.Status)
+		err := rows.Scan(&expr.Uuid, &expr.Expr, &expr.Status, &expr.Result)
 		if err != nil {
 			return []struct {
-				Uuid   string `json:"expressionid"`
-				Expr   string `json:"expression"`
-				Status int    `json:"status"`
+				Uuid   string      `json:"expressionid"`
+				Expr   string      `json:"expression"`
+				Status int         `json:"status"`
+				Result interface{} `json:"result"`
 			}{}, fmt.Errorf("unable to scan row: %w", err)
 		}
 		exprs = append(exprs, expr)
@@ -93,26 +98,31 @@ func (c *Connection) GetExpressions(ctx context.Context) ([]struct {
 	return exprs, nil
 }
 
-func (c *Connection) GetExpressionByID(ctx context.Context, expressionid string) (interface{}, error) {
+func (c *Connection) GetExpressionByID(ctx context.Context, expressionid string) (interface{}, int32, error) {
 	// ctxWithT, cancel := context.WithTimeout(ctx, time.Second*2)
 	// defer cancel()
-	query := `SELECT result FROM expressions where expressionid = @expressionId`
+	query := `SELECT result, status FROM expressions where expressionid = @expressionId`
 	args := pgx.NamedArgs{
 		"expressionId": expressionid,
 	}
 	rows, err := c.conn.Query(ctx, query, args)
 	if err != nil {
-		return "", fmt.Errorf("unable to query expression: %w", err)
+		return "", 0, fmt.Errorf("unable to query expression: %w", err)
 	}
 	defer rows.Close()
 	var result interface{}
+	var status interface{}
 	for rows.Next() {
-		err := rows.Scan(&result)
+		err := rows.Scan(&result, &status)
 		if err != nil {
-			return "", fmt.Errorf("unable to scan row: %w", err)
+			return "", 0, fmt.Errorf("unable to scan row: %w", err)
 		}
 	}
-	return result, nil
+	if status == nil {
+		return "", 0, fmt.Errorf("expression didn't exist")
+	}
+	st, _ := status.(int32)
+	return result, st, nil
 }
 
 func (c *Connection) GetNotPartitionExpressions(ctx context.Context) ([][]string, error) {
@@ -168,6 +178,20 @@ func (c *Connection) BulkInsertOperations(ctx context.Context, tasks []calc.Oper
 		}
 	}
 	return results.Close()
+}
+
+func (c *Connection) ChangeOperationStatus(ctx context.Context, operationid string, status int) error {
+	query := `UPDATE operations SET status = @status WHERE operationid = @operationid`
+	args := pgx.NamedArgs{
+		"operationid": operationid,
+		"status":      status,
+	}
+	_, err := c.conn.Exec(ctx, query, args)
+	if err != nil {
+		return fmt.Errorf("unable to update row: %w", err)
+	}
+	slog.Info(fmt.Sprintf("Changed operation %s status to %d", operationid, status))
+	return nil
 }
 
 func (c *Connection) ChangeExpressionStatus(ctx context.Context, expressionid string, status int) error {
@@ -249,7 +273,7 @@ func (c *Connection) SetExpressionResult(ctx context.Context, expressionid strin
 	if err != nil {
 		return fmt.Errorf("unable to update row: %w", err)
 	}
-	slog.Info(fmt.Sprintf("Get operation (%s) result: %f", expressionid, result))
+	slog.Info(fmt.Sprintf("Get expression (%s) result: %f", expressionid, result))
 	return nil
 }
 

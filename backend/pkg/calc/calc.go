@@ -23,9 +23,8 @@ type Operation struct {
 	Result       interface{}
 }
 
-func (op Operation) Task() float64 {
-	operTimeout := map[string]time.Duration{"+": time.Second * 2, "-": time.Second * 1, "*": time.Second * 3, "/": time.Second * 4}
-	time.Sleep(operTimeout[op.Operator])
+func (op Operation) Task(operTimeouts map[string]time.Duration) float64 {
+	time.Sleep(operTimeouts[op.Operator])
 	switch op.Operator {
 	case "+":
 		return op.V1.(float64) + op.V2.(float64)
@@ -112,7 +111,7 @@ func IsOperation(t interface{}) bool {
 	return false
 }
 
-func TransformExpressionToStack(expressionID, expression string) []Operation {
+func TransformExpressionToStack(expressionID, expression string) ([]Operation, error) {
 	tokens := strings.Split(infixToPostfix(expression), " ")
 	opers := make([]interface{}, 0)
 	tasks := make([]Operation, 0)
@@ -121,7 +120,7 @@ func TransformExpressionToStack(expressionID, expression string) []Operation {
 			opers = append(opers, v)
 		} else {
 			if len(opers) < 2 {
-				panic("dont much values")
+				return []Operation{}, fmt.Errorf("don't much values. Unary operations are not supported")
 			}
 			v1 := opers[len(opers)-2]
 			v2 := opers[len(opers)-1]
@@ -163,7 +162,7 @@ func TransformExpressionToStack(expressionID, expression string) []Operation {
 			tasks[i].V2 = nil
 		}
 	}
-	return tasks
+	return tasks, nil
 }
 
 // Очищение и валидация выражения
@@ -172,9 +171,12 @@ func ValidExpression(expression string) (string, error) {
 	res := re.ReplaceAllString(strings.ReplaceAll(expression, " ", ""), "")
 	scb := []rune{}
 	for i := 0; i < len(res); i++ {
-		if res[i] == '{' {
-			scb = append(scb, '{')
-		} else if res[i] == '}' {
+		if res[i] == '(' {
+			scb = append(scb, ')')
+		} else if res[i] == ')' {
+			if len(scb) == 0 {
+				return "", fmt.Errorf("invalid count of brackets")
+			}
 			scb = scb[:len(scb)-1]
 		}
 	}

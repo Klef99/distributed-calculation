@@ -1,0 +1,210 @@
+{
+	"info": {
+		"_postman_id": "25c47be6-3827-483d-9133-c237f4db01af",
+		"name": "Distibuted calculation",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "19960144"
+	},
+	"item": [
+		{
+			"name": "Orchestrator",
+			"item": [
+				{
+					"name": "addExpression",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "X-Request-Id",
+								"value": "",
+								"type": "text",
+								"disabled": true
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n    \"expression\": \"2+2/1+2/1\"\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "http://localhost:8080/addExpression",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8080",
+							"path": [
+								"addExpression"
+							],
+							"query": [
+								{
+									"key": "",
+									"value": "",
+									"description": "Не забывать энкодить в URI формат(Выделить текст и ПКМ).",
+									"disabled": true
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "addExpressionWithHeader",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "X-Request-Id",
+								"value": "d1a62f29-ad48-48de-913c-c6f54896469c",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n    \"expression\": \"2+2/1+2/1\"\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "http://localhost:8080/addExpression",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8080",
+							"path": [
+								"addExpression"
+							],
+							"query": [
+								{
+									"key": "",
+									"value": "",
+									"description": "Не забывать энкодить в URI формат(Выделить текст и ПКМ).",
+									"disabled": true
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "setOperationsTimeout",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n    \"*\": 3,\r\n    \"+\": 5,\r\n    \"-\": 5,\r\n    \"/\": 10\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "http://localhost:8080/setOperationsTimeout",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8080",
+							"path": [
+								"setOperationsTimeout"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "getExpressionsList",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:8080/getExpressionsList",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8080",
+							"path": [
+								"getExpressionsList"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "getExpressionByID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:8080/getExpressionByID?expressionId=6b4dd488-3691-4d21-9cc2-5e0cc5c52b74",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8080",
+							"path": [
+								"getExpressionByID"
+							],
+							"query": [
+								{
+									"key": "expressionId",
+									"value": "6b4dd488-3691-4d21-9cc2-5e0cc5c52b74"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "getWorkersStatus",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:8080/getWorkersStatus",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8080",
+							"path": [
+								"getWorkersStatus"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "getOperationsTimeout",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:8080/getOperationsTimeout",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8080",
+							"path": [
+								"getOperationsTimeout"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		}
+	]
+}
