@@ -118,5 +118,7 @@ GET `http://localhost:8080/getOperationsTimeout`
 Для более удобного ознакомления с системой, следует использовать [postman](https://www.postman.com/downloads/)
 [Postman file](docs/Distibuted%20calculation.postman_collection.json).
 
-# Схема
+# Общая схема системы
 ![image](docs/system%20scheme.svg)
+# Схема базы данных
+![image](docs/database%20struct.svg)
