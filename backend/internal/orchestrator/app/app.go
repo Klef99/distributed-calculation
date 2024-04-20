@@ -56,13 +56,15 @@ func Run() {
 	go d.UpdateOperations(2 * time.Second)
 	// Создаём http-сервер
 	router := mux.NewRouter()
-	router.HandleFunc("/addExpression", h.AddExpression)
+	router.HandleFunc("/addExpression", handlers.AuthMW(h.AddExpression))
 	router.HandleFunc("/getExpressionsList", h.GetExpressionsList)
 	router.HandleFunc("/getExpressionByID", h.GetExpressionByID)
 	router.HandleFunc("/getHearthbeat", h.GetHearthbeat)
 	router.HandleFunc("/getWorkersStatus", h.GetWorkersStatus)
 	router.HandleFunc("/setOperationsTimeout", h.SetOperationsTimeout)
 	router.HandleFunc("/getOperationsTimeout", h.GetOperationsTimeout)
+	router.HandleFunc("/register", h.Registration)
+	router.HandleFunc("/login", h.Login)
 	err = http.ListenAndServe(":8080", router)
 	if err != nil {
 		log.Fatalln("There's an error with the server", err)

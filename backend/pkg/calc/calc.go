@@ -150,6 +150,9 @@ func TransformExpressionToStack(expressionID, expression string) ([]Operation, e
 			}
 			task.V1 = v1
 			task.V2 = v2
+			if task.Operator == "/" && task.V2 == 0 {
+				return []Operation{}, fmt.Errorf("division by 0")
+			}
 			opers = append(opers, task)
 			tasks = append(tasks, task)
 		}

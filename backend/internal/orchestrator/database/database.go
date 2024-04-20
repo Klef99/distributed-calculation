@@ -13,6 +13,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/klef99/distributed-calculation-backend/pkg/calc"
+	"golang.org/x/crypto/bcrypt"
 )
 
 type Connection struct {
@@ -328,4 +329,49 @@ func (c *Connection) SetOperationResultToParent(ctx context.Context, opers []str
 		slog.Info(fmt.Sprintf("Update %s", op.Operationid))
 	}
 	return results.Close()
+}
+
+func (c *Connection) Registration(ctx context.Context, username string, hash string) error {
+	query := `INSERT INTO users (username, hash) VALUES (@username, @hash) returning username`
+	args := pgx.NamedArgs{
+		"username": username,
+		"hash":     hash,
+	}
+	rows, err := c.conn.Query(ctx, query, args)
+	if err != nil {
+		return fmt.Errorf("unable to insert user row: %w", err)
+	}
+	defer rows.Close()
+	var resp string
+	for rows.Next() {
+		rows.Scan(&resp)
+	}
+	if resp != username {
+		return fmt.Errorf("unexpected error")
+	}
+	return nil
+}
+
+func (c *Connection) Login(ctx context.Context, username, password string) (bool, error) {
+	query := `Select username, hash from users where username = @username`
+	args := pgx.NamedArgs{
+		"username": username,
+	}
+	rows, err := c.conn.Query(ctx, query, args)
+	if err != nil {
+		return false, fmt.Errorf("unable to login: %w", err)
+	}
+	defer rows.Close()
+	resp := struct {
+		username string
+		hash     string
+	}{}
+	for rows.Next() {
+		rows.Scan(&resp.username, &resp.hash)
+	}
+	if resp.username != username {
+		return false, nil
+	}
+	err = bcrypt.CompareHashAndPassword([]byte(resp.hash), []byte(password))
+	return err == nil, err
 }

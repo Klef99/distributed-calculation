@@ -1,3 +1,17 @@
+create table public.users
+(
+    id       serial
+        constraint users_pk
+            primary key,
+    username text not null
+        constraint users_pk_2
+            unique,
+    hash     text not null
+);
+
+alter table public.users
+    owner to orchestrator;
+
 create table public.expressions
 (
     expressionid uuid not null
@@ -5,7 +19,10 @@ create table public.expressions
             primary key,
     expression   text not null,
     status       integer,
-    result       double precision
+    result       double precision,
+    userid       integer
+        constraint expressions_users_id_fk
+            references public.users
 );
 
 comment on column public.expressions.expressionid is 'UUID запроса';

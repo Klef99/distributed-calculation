@@ -1,16 +1,20 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/klef99/distributed-calculation-backend/internal/orchestrator/database"
+	"github.com/klef99/distributed-calculation-backend/internal/orchestrator/services/jwtgenerator"
 	"github.com/klef99/distributed-calculation-backend/pkg/calc"
 	"github.com/klef99/distributed-calculation-backend/pkg/redis"
+	"golang.org/x/crypto/bcrypt"
 )
 
 type Expression struct {
@@ -38,6 +42,7 @@ func (h *Handler) AddExpression(w http.ResponseWriter, r *http.Request) {
 	}{}
 	dec := json.NewDecoder(r.Body)
 	err := dec.Decode(&exprs)
+	// username := r.Header.Get("username")
 	if exprs.Expression == "" || err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		slog.Info("wrong decode expression")
@@ -182,4 +187,93 @@ func (h *Handler) GetOperationsTimeout(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(ret)
+}
+
+func (h *Handler) Registration(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
+		return
+	}
+	user := struct {
+		Login    string `json:"login"`
+		Password string `json:"password"`
+	}{}
+	decoder := json.NewDecoder(r.Body)
+	err := decoder.Decode(&user)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		slog.Warn(err.Error())
+		return
+	}
+	hashedBytes, err := bcrypt.GenerateFromPassword([]byte(user.Password), bcrypt.DefaultCost)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		slog.Warn(err.Error())
+		return
+	}
+	err = h.conn.Registration(context.Background(), user.Login, string(hashedBytes))
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		slog.Warn(err.Error())
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte("OK"))
+}
+
+func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
+		return
+	}
+	user := struct {
+		Login    string `json:"login"`
+		Password string `json:"password"`
+	}{}
+	decoder := json.NewDecoder(r.Body)
+	err := decoder.Decode(&user)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		slog.Warn(err.Error())
+		return
+	}
+	isLogin, err := h.conn.Login(context.Background(), user.Login, user.Password)
+	if err != nil && !isLogin {
+		w.WriteHeader(http.StatusInternalServerError)
+		slog.Warn(err.Error())
+		w.Write([]byte("Failed to log in."))
+		return
+	}
+	newToken, err := jwtgenerator.GenerateToken(user.Login)
+	if err != nil && !isLogin {
+		w.WriteHeader(http.StatusInternalServerError)
+		slog.Warn(err.Error())
+		w.Write([]byte("Unable to create."))
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte(newToken))
+}
+
+func AuthMW(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		// read basic auth information
+		bearerToken := r.Header.Get("Authorization")
+		reqToken := strings.Split(bearerToken, " ")
+		if len(reqToken) != 2 {
+			w.WriteHeader(http.StatusUnauthorized)
+			slog.Warn("Invalid request (required authorization token)")
+			w.Write([]byte("Invalid request (required authorization token)"))
+			return
+		}
+		username, err := jwtgenerator.ValidateToken(reqToken[1])
+		if username == "" || err != nil {
+			w.WriteHeader(http.StatusUnauthorized)
+			slog.Warn(err.Error())
+			w.Write([]byte(err.Error()))
+			return
+		}
+		r.Header.Add("username", username)
+		next(w, r)
+	}
 }
