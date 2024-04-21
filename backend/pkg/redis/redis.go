@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/klef99/distributed-calculation-backend/pkg/calc"
@@ -27,7 +28,7 @@ func CloseConnectionRedis(cr *ConnectionRedis) {
 	defer cr.conn.Close()
 }
 
-func (cr *ConnectionRedis) BulkSetOperationsTimeouts(timeouts map[string]int) error {
+func (cr *ConnectionRedis) BulkSetOperationsTimeouts(timeouts map[string]int, userid int) error {
 	ctx := context.Background()
 	for key, value := range timeouts {
 		flag := true
@@ -39,16 +40,16 @@ func (cr *ConnectionRedis) BulkSetOperationsTimeouts(timeouts map[string]int) er
 		if flag {
 			continue
 		}
-		err := cr.conn.HSet(ctx, "operationTimeouts", key, value*int(time.Second.Nanoseconds())).Err()
+		err := cr.conn.HSet(ctx, "operationTimeouts_"+strconv.Itoa(userid), key, value*int(time.Second.Nanoseconds())).Err()
 		if err != nil {
 			return fmt.Errorf("error while doing HSET command in gredis : %v", err)
 		}
 	}
 	return nil
 }
-func (cr *ConnectionRedis) GetOperationsTimeouts() (map[string]time.Duration, error) {
+func (cr *ConnectionRedis) GetOperationsTimeouts(userid int) (map[string]time.Duration, error) {
 	ctx := context.Background()
-	cmd := cr.conn.HGetAll(ctx, "operationTimeouts")
+	cmd := cr.conn.HGetAll(ctx, "operationTimeouts_"+strconv.Itoa(userid))
 	if cmd.Err() != nil {
 		return map[string]time.Duration{}, cmd.Err()
 	}
@@ -63,8 +64,8 @@ func (cr *ConnectionRedis) GetOperationsTimeouts() (map[string]time.Duration, er
 	return timeouts, nil
 }
 
-func (cr *ConnectionRedis) SendOperationToRedis(operations []calc.Operation) error {
-	for _, operation := range operations {
+func (cr *ConnectionRedis) SendOperationToRedis(operations []calc.Operation, userids []int) error {
+	for i, operation := range operations {
 		p, err := json.Marshal(operation)
 		if err != nil {
 			return err
@@ -73,7 +74,7 @@ func (cr *ConnectionRedis) SendOperationToRedis(operations []calc.Operation) err
 		if err != nil {
 			return err
 		}
-		err = cr.conn.Publish(context.Background(), "operations", p).Err()
+		err = cr.conn.Publish(context.Background(), "operations", userids[i]).Err()
 		if err != nil {
 			return err
 		}

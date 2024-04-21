@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"log/slog"
+	"strconv"
 
 	"github.com/klef99/distributed-calculation-backend/internal/agent/services/pool"
 	"github.com/klef99/distributed-calculation-backend/pkg/calc"
@@ -23,7 +24,7 @@ func (w *Worker) SetOperationsToCalc() {
 	pubsub := w.conn.GetSubscribe("operations")
 	defer pubsub.Close()
 	for {
-		_, err := pubsub.ReceiveMessage(context.Background())
+		msg, err := pubsub.ReceiveMessage(context.Background())
 		if err != nil {
 			panic(err)
 		}
@@ -36,7 +37,14 @@ func (w *Worker) SetOperationsToCalc() {
 			continue
 		}
 		json.Unmarshal([]byte(data), &operation)
-		timeouts, err := w.conn.GetOperationsTimeouts()
+		if err != nil {
+			panic(err)
+		}
+		userid, err := strconv.Atoi(msg.Payload)
+		if err != nil {
+			panic(err)
+		}
+		timeouts, err := w.conn.GetOperationsTimeouts(userid)
 		if err != nil {
 			panic(err)
 		}

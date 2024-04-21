@@ -213,7 +213,7 @@ func (c *Connection) ChangeExpressionStatus(ctx context.Context, expressionid st
 	return nil
 }
 
-func (c *Connection) GetExpressionToExecution(ctx context.Context) ([]calc.Operation, error) {
+func (c *Connection) GetOperationsToExecution(ctx context.Context) ([]calc.Operation, error) {
 	query := `SELECT operationid, operator, v1, v2, expressionid, parentid, "left" FROM operations where v1 IS NOT NULL and v2 is not null and status = 0`
 	rows, err := c.conn.Query(ctx, query)
 	if err != nil {
@@ -413,4 +413,45 @@ func (c *Connection) UpdateStuckedOperations(ctx context.Context, timeout time.D
 		return fmt.Errorf("unable to insert row: %w", err)
 	}
 	return nil
+}
+
+func (c *Connection) GetUserIDFromOperationId(ctx context.Context, operationId string) (int, error) {
+	query := `SELECT e.userid
+	FROM public.operations o
+	JOIN public.expressions e ON o.expressionid = e.expressionid
+	WHERE o.operationid = @operationid;`
+	args := pgx.NamedArgs{
+		"operationid": operationId,
+	}
+	rows, err := c.conn.Query(ctx, query, args)
+	if err != nil {
+		return -1, fmt.Errorf("unable to login: %w", err)
+	}
+	defer rows.Close()
+	id := -1
+	for rows.Next() {
+		rows.Scan(&id)
+	}
+	if id == -1 {
+		return -1, nil
+	}
+	return id, nil
+}
+func (c *Connection) GetAllUserId(ctx context.Context) ([]int, error) {
+	query := `select id from users`
+	rows, err := c.conn.Query(ctx, query)
+	if err != nil {
+		return []int{}, fmt.Errorf("unable to login: %w", err)
+	}
+	defer rows.Close()
+	res := []int{}
+	id := -1
+	for rows.Next() {
+		rows.Scan(&id)
+		res = append(res, id)
+	}
+	if id == -1 {
+		return []int{}, nil
+	}
+	return res, nil
 }

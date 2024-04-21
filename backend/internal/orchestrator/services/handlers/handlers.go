@@ -11,9 +11,9 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
-	"github.com/klef99/distributed-calculation-backend/internal/orchestrator/database"
 	"github.com/klef99/distributed-calculation-backend/internal/orchestrator/services/jwtgenerator"
 	"github.com/klef99/distributed-calculation-backend/pkg/calc"
+	"github.com/klef99/distributed-calculation-backend/pkg/database"
 	"github.com/klef99/distributed-calculation-backend/pkg/redis"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -165,7 +165,8 @@ func (h *Handler) SetOperationsTimeout(w http.ResponseWriter, r *http.Request) {
 		slog.Warn(err.Error())
 		return
 	}
-	err = h.connR.BulkSetOperationsTimeouts(operationTimeout)
+	userid, _ := strconv.Atoi(r.Header.Get("userid"))
+	err = h.connR.BulkSetOperationsTimeouts(operationTimeout, userid)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		slog.Warn(err.Error())
@@ -180,7 +181,8 @@ func (h *Handler) GetOperationsTimeout(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
 		return
 	}
-	timeouts, err := h.connR.GetOperationsTimeouts()
+	userid, _ := strconv.Atoi(r.Header.Get("userid"))
+	timeouts, err := h.connR.GetOperationsTimeouts(userid)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		slog.Warn(err.Error())
@@ -218,6 +220,18 @@ func (h *Handler) Registration(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	err = h.conn.Registration(context.Background(), user.Login, string(hashedBytes))
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		slog.Warn(err.Error())
+		return
+	}
+	userid, err := h.conn.GetUserID(context.Background(), user.Login)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		slog.Warn(err.Error())
+		return
+	}
+	err = h.connR.BulkSetOperationsTimeouts(map[string]int{"+": 10, "-": 10, "*": 10, "/": 10}, userid)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		slog.Warn(err.Error())

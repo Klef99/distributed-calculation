@@ -7,8 +7,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/klef99/distributed-calculation-backend/internal/orchestrator/database"
 	"github.com/klef99/distributed-calculation-backend/pkg/calc"
+	"github.com/klef99/distributed-calculation-backend/pkg/database"
 	"github.com/klef99/distributed-calculation-backend/pkg/redis"
 )
 
@@ -66,7 +66,16 @@ func (d *Distributor) NewOperations(tick time.Duration) {
 func (d *Distributor) SendOperations(tick time.Duration) {
 	ticker := time.NewTicker(tick)
 	for range ticker.C {
-		avalibleOperations, err := d.PostgresConn.GetExpressionToExecution(context.Background())
+		avalibleOperations, err := d.PostgresConn.GetOperationsToExecution(context.Background())
+		ids := []int{}
+		for _, oper := range avalibleOperations {
+			userid, err := d.PostgresConn.GetUserIDFromOperationId(context.Background(), oper.OperationID)
+			if err != nil {
+				slog.Warn(err.Error())
+				continue
+			}
+			ids = append(ids, userid)
+		}
 		if err != nil {
 			slog.Warn(err.Error())
 			continue
@@ -89,7 +98,7 @@ func (d *Distributor) SendOperations(tick time.Duration) {
 			slog.Warn("Avaliable workers not found.")
 			continue
 		}
-		err = d.RedisConn.SendOperationToRedis(avalibleOperations)
+		err = d.RedisConn.SendOperationToRedis(avalibleOperations, ids)
 		if err != nil {
 			slog.Warn(err.Error())
 			continue
@@ -181,14 +190,21 @@ func (d *Distributor) UpdateOperations(tick time.Duration) {
 func (d *Distributor) RestoreStuckedOperation(tick time.Duration) {
 	ticker := time.NewTicker(tick)
 	for range ticker.C {
-		timeouts, err := d.RedisConn.GetOperationsTimeouts()
+		ids, err := d.PostgresConn.GetAllUserId(context.Background())
 		if err != nil {
 			slog.Warn(err.Error())
 			continue
 		}
 		maxTimeout := time.Nanosecond
-		for _, v := range timeouts {
-			maxTimeout = max(maxTimeout, v)
+		for id := range ids {
+			timeouts, err := d.RedisConn.GetOperationsTimeouts(id)
+			if err != nil {
+				slog.Warn(err.Error())
+				continue
+			}
+			for _, v := range timeouts {
+				maxTimeout = max(maxTimeout, v)
+			}
 		}
 		err = d.PostgresConn.UpdateStuckedOperations(context.Background(), maxTimeout)
 		if err != nil {
