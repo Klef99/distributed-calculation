@@ -19,11 +19,17 @@
 								"value": "",
 								"type": "text",
 								"disabled": true
+							},
+							{
+								"key": "Authorization",
+								"value": "",
+								"type": "text",
+								"disabled": true
 							}
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\r\n    \"expression\": \"2+2/1+2/1\"\r\n}",
+							"raw": "{\r\n    \"expression\": \"((9 * 7) - (4 / 2) + (6 * 3) / (15 - 3) * (10 + 2)) + (5 - 2) / (8 * 2) * (7 / 1)\"\r\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -44,7 +50,6 @@
 								{
 									"key": "",
 									"value": "",
-									"description": "Не забывать энкодить в URI формат(Выделить текст и ПКМ).",
 									"disabled": true
 								}
 							]
@@ -101,7 +106,7 @@
 						"header": [],
 						"body": {
 							"mode": "raw",
-							"raw": "{\r\n    \"*\": 3,\r\n    \"+\": 5,\r\n    \"-\": 5,\r\n    \"/\": 10\r\n}",
+							"raw": "{\r\n    \"*\": 1,\r\n    \"+\": 1,\r\n    \"-\": 1,\r\n    \"/\": 1\r\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -147,7 +152,7 @@
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "http://localhost:8080/getExpressionByID?expressionId=6b4dd488-3691-4d21-9cc2-5e0cc5c52b74",
+							"raw": "http://localhost:8080/getExpressionByID?expressionId=49353cae-c17f-4add-9bee-9a07b724ebd2",
 							"protocol": "http",
 							"host": [
 								"localhost"
@@ -159,7 +164,7 @@
 							"query": [
 								{
 									"key": "expressionId",
-									"value": "6b4dd488-3691-4d21-9cc2-5e0cc5c52b74"
+									"value": "49353cae-c17f-4add-9bee-9a07b724ebd2"
 								}
 							]
 						}
@@ -203,8 +208,96 @@
 						}
 					},
 					"response": []
+				},
+				{
+					"name": "register",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n    \"login\": \"klef99\",\r\n    \"password\": \"123abCC\"\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "http://localhost:8080/register",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8080",
+							"path": [
+								"register"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "login",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n    \"login\": \"klef99\",\r\n    \"password\": \"123abCC\"\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "http://localhost:8080/login",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8080",
+							"path": [
+								"login"
+							]
+						}
+					},
+					"response": []
 				}
 			]
+		}
+	],
+	"auth": {
+		"type": "bearer",
+		"bearer": [
+			{
+				"key": "token",
+				"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3MTM3MzEzOTYsImlhdCI6MTcxMzcyNzc5NiwibmFtZSI6ImtsZWY5OSIsIm5iZiI6MTcxMzcyNzc5Nn0.ZQMKDsy-Fv_Bxrl5OfxTqH03z-BJ5SpFB1QAWGiQ_gU",
+				"type": "string"
+			}
+		]
+	},
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"packages": {},
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"packages": {},
+				"exec": [
+					""
+				]
+			}
 		}
 	]
 }
