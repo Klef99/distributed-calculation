@@ -50,7 +50,8 @@ create table public.operations
     parentid     uuid,
     "left"       boolean,
     result       double precision,
-    status       integer
+    status       integer,
+    changedtime  timestamp
 );
 
 comment on column public.operations.operationid is 'UUID элементарного выражения';

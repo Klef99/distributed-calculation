@@ -7,6 +7,7 @@ import (
 	"log"
 	"log/slog"
 	"os"
+	"time"
 
 	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgx/v5"
@@ -184,10 +185,11 @@ func (c *Connection) BulkInsertOperations(ctx context.Context, tasks []calc.Oper
 }
 
 func (c *Connection) ChangeOperationStatus(ctx context.Context, operationid string, status int) error {
-	query := `UPDATE operations SET status = @status WHERE operationid = @operationid`
+	query := `UPDATE operations SET status = @status, changedtime = @time WHERE operationid = @operationid`
 	args := pgx.NamedArgs{
 		"operationid": operationid,
 		"status":      status,
+		"time":        time.Now(),
 	}
 	_, err := c.conn.Exec(ctx, query, args)
 	if err != nil {
@@ -231,12 +233,14 @@ func (c *Connection) GetExpressionToExecution(ctx context.Context) ([]calc.Opera
 }
 
 func (c *Connection) BulkChangeStatusOperations(ctx context.Context, status int, operations []calc.Operation) error {
-	query := `UPDATE operations SET status = @status where operationid = @operationid`
+	now := time.Now()
+	query := `UPDATE operations SET status = @status, changedtime = @time where operationid = @operationid`
 	batch := &pgx.Batch{}
 	for _, task := range operations {
 		args := pgx.NamedArgs{
 			"operationid": task.OperationID,
 			"status":      status,
+			"time":        now,
 		}
 		batch.Queue(query, args)
 	}
@@ -396,4 +400,17 @@ func (c *Connection) GetUserID(ctx context.Context, username string) (int, error
 		return -1, nil
 	}
 	return id, nil
+}
+
+func (c *Connection) UpdateStuckedOperations(ctx context.Context, timeout time.Duration) error {
+	query := `UPDATE operations set status=0 where (status = 1 and result is null and @time - changedtime > @delta) or (status = 2 and result is null)`
+	args := pgx.NamedArgs{
+		"time":  time.Now(),
+		"delta": timeout,
+	}
+	_, err := c.conn.Exec(ctx, query, args)
+	if err != nil {
+		return fmt.Errorf("unable to insert row: %w", err)
+	}
+	return nil
 }

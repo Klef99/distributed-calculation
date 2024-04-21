@@ -54,17 +54,19 @@ func Run() {
 	go d.SendOperations(2 * time.Second)
 	go d.GetOperationResult()
 	go d.UpdateOperations(2 * time.Second)
+	go d.RestoreStuckedOperation(1 * time.Minute)
 	// Создаём http-сервер
 	router := mux.NewRouter()
 	router.HandleFunc("/addExpression", h.AuthMW(h.AddExpression))
 	router.HandleFunc("/getExpressionsList", h.AuthMW(h.GetExpressionsList))
 	router.HandleFunc("/getExpressionByID", h.AuthMW(h.GetExpressionByID))
-	router.HandleFunc("/getHearthbeat", h.GetHearthbeat)
-	router.HandleFunc("/getWorkersStatus", h.GetWorkersStatus)
-	router.HandleFunc("/setOperationsTimeout", h.SetOperationsTimeout)
-	router.HandleFunc("/getOperationsTimeout", h.GetOperationsTimeout)
 	router.HandleFunc("/register", h.Registration)
 	router.HandleFunc("/login", h.Login)
+	router.HandleFunc("/setOperationsTimeout", h.SetOperationsTimeout)
+	router.HandleFunc("/getOperationsTimeout", h.GetOperationsTimeout)
+	// Внутренние операции, недоступные для пользователя
+	router.HandleFunc("/getHearthbeat", h.GetHearthbeat)
+	router.HandleFunc("/getWorkersStatus", h.GetWorkersStatus)
 	err = http.ListenAndServe(":8080", router)
 	if err != nil {
 		log.Fatalln("There's an error with the server", err)

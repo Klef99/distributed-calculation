@@ -177,3 +177,23 @@ func (d *Distributor) UpdateOperations(tick time.Duration) {
 		}
 	}
 }
+
+func (d *Distributor) RestoreStuckedOperation(tick time.Duration) {
+	ticker := time.NewTicker(tick)
+	for range ticker.C {
+		timeouts, err := d.RedisConn.GetOperationsTimeouts()
+		if err != nil {
+			slog.Warn(err.Error())
+			continue
+		}
+		maxTimeout := time.Nanosecond
+		for _, v := range timeouts {
+			maxTimeout = max(maxTimeout, v)
+		}
+		err = d.PostgresConn.UpdateStuckedOperations(context.Background(), maxTimeout)
+		if err != nil {
+			slog.Warn(err.Error())
+			continue
+		}
+	}
+}

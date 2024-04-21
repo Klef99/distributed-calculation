@@ -69,7 +69,7 @@ func New(maxGoroutines int) *Pool {
 	return &p
 }
 
-// Run Передаем объект, который реализует интерфейс Worker и добавляем задачи в канал, из которого забирает работу пул
+// Передаем объект, который реализует интерфейс Worker и добавляем задачи в канал, из которого забирает работу пул
 func (p *Pool) Run(w Worker, timeouts map[string]time.Duration) {
 	p.tasks <- w
 	p.mu.Lock()
