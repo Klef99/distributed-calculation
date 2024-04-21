@@ -56,9 +56,9 @@ func Run() {
 	go d.UpdateOperations(2 * time.Second)
 	// Создаём http-сервер
 	router := mux.NewRouter()
-	router.HandleFunc("/addExpression", handlers.AuthMW(h.AddExpression))
-	router.HandleFunc("/getExpressionsList", h.GetExpressionsList)
-	router.HandleFunc("/getExpressionByID", h.GetExpressionByID)
+	router.HandleFunc("/addExpression", h.AuthMW(h.AddExpression))
+	router.HandleFunc("/getExpressionsList", h.AuthMW(h.GetExpressionsList))
+	router.HandleFunc("/getExpressionByID", h.AuthMW(h.GetExpressionByID))
 	router.HandleFunc("/getHearthbeat", h.GetHearthbeat)
 	router.HandleFunc("/getWorkersStatus", h.GetWorkersStatus)
 	router.HandleFunc("/setOperationsTimeout", h.SetOperationsTimeout)

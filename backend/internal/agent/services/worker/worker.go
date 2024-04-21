@@ -23,12 +23,19 @@ func (w *Worker) SetOperationsToCalc() {
 	pubsub := w.conn.GetSubscribe("operations")
 	defer pubsub.Close()
 	for {
-		msg, err := pubsub.ReceiveMessage(context.Background())
+		_, err := pubsub.ReceiveMessage(context.Background())
 		if err != nil {
 			panic(err)
 		}
 		var operation calc.Operation
-		json.Unmarshal([]byte(msg.Payload), &operation)
+		data, err := w.conn.GetOperationToCalc()
+		if err != nil {
+			panic(err)
+		}
+		if data == "nil" {
+			continue
+		}
+		json.Unmarshal([]byte(data), &operation)
 		timeouts, err := w.conn.GetOperationsTimeouts()
 		if err != nil {
 			panic(err)

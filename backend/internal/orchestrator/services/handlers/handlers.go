@@ -7,6 +7,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/google/uuid"
@@ -42,7 +43,8 @@ func (h *Handler) AddExpression(w http.ResponseWriter, r *http.Request) {
 	}{}
 	dec := json.NewDecoder(r.Body)
 	err := dec.Decode(&exprs)
-	// username := r.Header.Get("username")
+	userid, _ := strconv.Atoi(r.Header.Get("userid"))
+	nctx := context.WithValue(r.Context(), "userid", userid)
 	if exprs.Expression == "" || err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		slog.Info("wrong decode expression")
@@ -58,14 +60,14 @@ func (h *Handler) AddExpression(w http.ResponseWriter, r *http.Request) {
 	if expressionid == "" {
 		expressionid = uuid.NewString()
 	}
-	_, _, err = h.conn.GetExpressionByID(r.Context(), expressionid)
+	_, _, err = h.conn.GetExpressionByID(nctx, expressionid)
 	if err == nil {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("Expression exist in database"))
 		return
 	}
 	res := Expression{Expressionid: expressionid, Expr: expr, Status: 0}
-	err = h.conn.InsertExpression(r.Context(), res.Expressionid, res.Expr)
+	err = h.conn.InsertExpression(nctx, res.Expressionid, res.Expr)
 	w.Header().Set("Content-Type", "application/json")
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -81,7 +83,9 @@ func (h *Handler) GetExpressionsList(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
 		return
 	}
-	exprs, err := h.conn.GetExpressions(r.Context())
+	userid, _ := strconv.Atoi(r.Header.Get("userid"))
+	nctx := context.WithValue(r.Context(), "userid", userid)
+	exprs, err := h.conn.GetExpressions(nctx)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		slog.Warn(err.Error())
@@ -98,7 +102,9 @@ func (h *Handler) GetExpressionByID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	exprId := r.URL.Query().Get("expressionId")
-	result, status, err := h.conn.GetExpressionByID(r.Context(), exprId)
+	userid, _ := strconv.Atoi(r.Header.Get("userid"))
+	nctx := context.WithValue(r.Context(), "userid", userid)
+	result, status, err := h.conn.GetExpressionByID(nctx, exprId)
 	res := struct {
 		ExpressionId string      `json:"expressionId"`
 		Status       int32       `json:"status"`
@@ -255,7 +261,7 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(newToken))
 }
 
-func AuthMW(next http.HandlerFunc) http.HandlerFunc {
+func (h *Handler) AuthMW(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// read basic auth information
 		bearerToken := r.Header.Get("Authorization")
@@ -273,7 +279,13 @@ func AuthMW(next http.HandlerFunc) http.HandlerFunc {
 			w.Write([]byte(err.Error()))
 			return
 		}
-		r.Header.Add("username", username)
+		userid, err := h.conn.GetUserID(context.Background(), username)
+		if userid == -1 || err != nil {
+			w.WriteHeader(http.StatusUnauthorized)
+			slog.Warn(err.Error())
+			return
+		}
+		r.Header.Add("userid", strconv.Itoa(userid))
 		next(w, r)
 	}
 }

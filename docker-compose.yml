@@ -68,6 +68,18 @@ services:
       dockerfile: Dockerfile.agent
     depends_on:
       - orchestrator
+    environment:
+      WORKER_NAME: "Worker1"
+    env_file:
+      - .env
+  agent2:
+    restart: unless-stopped
+    build:
+      dockerfile: Dockerfile.agent
+    depends_on:
+      - orchestrator
+    environment:
+      WORKER_NAME: "Worker2"
     env_file:
       - .env
   orchestrator:

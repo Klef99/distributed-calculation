@@ -41,11 +41,12 @@ func CloseConnection(c *Connection) {
 }
 
 func (c *Connection) InsertExpression(ctx context.Context, id, expr string) error {
-	query := `INSERT INTO expressions(expressionid, expression, status) VALUES (@expressionId, @expression, @status) returning expressionid`
+	query := `INSERT INTO expressions(expressionid, expression, status, userid) VALUES (@expressionId, @expression, @status, @userid) returning expressionid`
 	args := pgx.NamedArgs{
 		"expressionId": id,
 		"expression":   expr,
 		"status":       0,
+		"userid":       ctx.Value("userid"),
 	}
 	_, err := c.conn.Exec(ctx, query, args)
 	if err != nil {
@@ -60,8 +61,8 @@ func (c *Connection) GetExpressions(ctx context.Context) ([]struct {
 	Status int         `json:"status"`
 	Result interface{} `json:"result"`
 }, error) {
-	query := `SELECT expressionid, expression, status, result FROM expressions`
-	rows, err := c.conn.Query(ctx, query)
+	query := `SELECT expressionid, expression, status, result FROM expressions where userid = $1`
+	rows, err := c.conn.Query(ctx, query, ctx.Value("userid"))
 	if err != nil {
 		return []struct {
 			Uuid   string      `json:"expressionid"`
@@ -102,9 +103,10 @@ func (c *Connection) GetExpressions(ctx context.Context) ([]struct {
 func (c *Connection) GetExpressionByID(ctx context.Context, expressionid string) (interface{}, int32, error) {
 	// ctxWithT, cancel := context.WithTimeout(ctx, time.Second*2)
 	// defer cancel()
-	query := `SELECT result, status FROM expressions where expressionid = @expressionId`
+	query := `SELECT result, status FROM expressions where expressionid = @expressionId and userid = @userid`
 	args := pgx.NamedArgs{
 		"expressionId": expressionid,
+		"userid":       ctx.Value("userid"),
 	}
 	rows, err := c.conn.Query(ctx, query, args)
 	if err != nil {
@@ -374,4 +376,24 @@ func (c *Connection) Login(ctx context.Context, username, password string) (bool
 	}
 	err = bcrypt.CompareHashAndPassword([]byte(resp.hash), []byte(password))
 	return err == nil, err
+}
+
+func (c *Connection) GetUserID(ctx context.Context, username string) (int, error) {
+	query := "Select id from users where username = @username"
+	args := pgx.NamedArgs{
+		"username": username,
+	}
+	rows, err := c.conn.Query(ctx, query, args)
+	if err != nil {
+		return -1, fmt.Errorf("unable to login: %w", err)
+	}
+	defer rows.Close()
+	id := -1
+	for rows.Next() {
+		rows.Scan(&id)
+	}
+	if id == -1 {
+		return -1, nil
+	}
+	return id, nil
 }

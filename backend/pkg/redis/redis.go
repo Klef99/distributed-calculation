@@ -69,12 +69,28 @@ func (cr *ConnectionRedis) SendOperationToRedis(operations []calc.Operation) err
 		if err != nil {
 			return err
 		}
+		err = cr.conn.RPush(context.Background(), "operations_lists", p).Err()
+		if err != nil {
+			return err
+		}
 		err = cr.conn.Publish(context.Background(), "operations", p).Err()
 		if err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+func (cr *ConnectionRedis) GetOperationToCalc() (string, error) {
+	oper := cr.conn.RPop(context.Background(), "operations_lists")
+	if oper.Err() == redis.Nil {
+		return "nil", nil
+	}
+	if oper.Err() != nil {
+		return "", oper.Err()
+	}
+	return oper.Result()
+
 }
 
 func (cr *ConnectionRedis) GetSubscribe(channleName string) *redis.PubSub {
