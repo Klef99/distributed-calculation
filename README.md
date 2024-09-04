@@ -1,41 +1,97 @@
-# Distributed-calculation
-Project from Yandex Lyceum Course - Programming in Go
-Start point: http://localhost:8080
+# Distributed arithmetic expression evaluator
 
-## Как запустить: 
-0) Установите [Docker engine](https://docs.docker.com/engine/install/) и [Docker compose](https://docs.docker.com/compose/install/)
+## Technology stack
+
+* Golang
+* PostgreSQL
+* Redis
+* Docker
+* Docker-compose
+
+## Description
+
+The user wants to calculate arithmetic expressions. He enters the string 2 + 2 * 2 and wants the answer to be 6. But our addition and multiplication operations (also division and subtraction) take a “very, very” long time to complete. Therefore, the option in which the user makes an http request and receives the result as a response is impossible. Moreover: the calculation of each such operation in our “alternative reality” takes “giant” computing power. Accordingly, we must be able to perform each action separately and we can scale this system by adding computing power to our system in the form of new “machines”. Therefore, when a user sends an expression, he receives an expression identifier in response and can, at some periodicity, check with the server whether the expression has been counted? If the expression is finally evaluated, he will get the result. Remember that some parts of an arphimetic expression can be evaluated in parallel.
+
+## Requirements
+
+### Front-end part (implemented as pure api requests)
+
+* Arithmetic expression input form. The user enters an arithmetic expression and sends a POST http request with this expression to the back-end. Note: Requests must be idempotent. A unique identifier is added to requests. If a user sends a request with an identifier that has already been sent and accepted for processing, the response is 200. Possible response options:
+
+    * [200]. The expression was successfully accepted, parsed and accepted for processing
+    * [400]. The expression is invalid
+    * [500]. Something is wrong on the back-end. As a response, you need to return the id of the expression accepted for execution.
+
+* Page with a list of expressions in the form of a list with expressions. Each entry on the page contains a status, an expression, the date it was created, and the date the calculation was completed. The page receives data with a GET http request from the back-end
+* A page with a list of operations in the form of pairs: operation name + execution time (editable field). As already stated in the problem statement, our operations take “as if for a very long time.” The page receives data with a GET http request from the back-end. The user can configure the operation execution time and save the changes.
+* Page with a list of computing capabilities. The page receives data with a GET http request from the server in the form of pairs: the name of the computing resource + the operation performed on it.
+
+Requirements:
+
+* The orchestrator can be restarted without losing state. We store all expressions in the DBMS.
+* The orchestrator must keep track of tasks that take too long to complete (the computer may also go offline) and make them available for computation again.
+
+### Back-end part
+
+Consists of 2 elements:
+
+* The server, which receives an arithmetic expression, translates it into a set of sequential tasks and ensures the order in which they are executed. From now on we will call it Orchestrator.
+* A computer that can receive orchestrator task, execute it and return the result to the server. In what follows we will call it Agent.
+
+Orchestrator
+Server that has the following endpoints:
+
+* Adding an arithmetic expression evaluation.
+* Getting a list of expressions with statuses.
+* Getting the value of an expression by its identifier.
+* Obtaining a list of available operations with their execution time.
+* Receiving a task for execution.
+* Receiving the result of data processing.
+
+The Daemon Agent
+Receives an expression to be evaluated from the server, evaluates it and sends the result of the expression to the server. When starting, the daemon launches several goroutines, each of which acts as an independent computer. The number of goroutines is controlled by an environment variable.
+
+## Getting Started
+
+### Prerequisites
+
+To start project you need:
+* [Docker](https://www.docker.com/)
+* [Docker compose](https://docs.docker.com/compose/install/)
+
+### Building from source
 1) `cd <"path/to/project/root/directory">`
-3) Установите пароли для redis и postgres в файле  `.env.example`
-4) Переименуйте `.env.example` в `.env` 
-5) `docker-compose -f docker-compose.yml up  -d`
+2) Set passwords for redis and postgresql in the file  `.env.example`
+3) Rename `.env.example` to `.env` 
+4) `docker-compose -f docker-compose.yml up  -d`
 
-## Описание запросов:
-### Регистрация
+## Description of requests:
+### Registration
 POST `http://localhost:8080/register`
-#### Тело запроса:
+#### Request Body:
   ```json
 {
     "login": "klef99",
     "password": "123abCC"
 }
 ```
-#### Тело ответа:
-OK, если регистрация успешна. Иначе http код не 200.
+#### Response body:
+OK, if the registration is successful. Otherwise, the HTTP code is not 200.
 
-### Авторизация
+### Authorization
 POST `http://localhost:8080/login`
-#### Тело запроса:
+#### Request body:
   ```json
 {
     "login": "klef99",
     "password": "123abCC"
 }
 ```
-#### Тело ответа:
-JWT токет, если регистрация успешна. Иначе http код не 200.
-### Получить статус агентов:
+#### Response body:
+JWT token if registration is successful. Otherwise, the HTTP code is not 200.
+### Get agent status:
 GET `http://localhost:8080/getWorkersStatus`
-#### Тело ответа:
+#### Response body:
 ```json
 [
     {
@@ -45,19 +101,19 @@ GET `http://localhost:8080/getWorkersStatus`
     }
 ]
 ```
-Агент признан недоступным, если с момента последнего hearthbeat прошла минута. Если недоступно ни одного агента, то выражения не отправляюся на расчёт. taskCount - количество рассчитываемых на данный момент операций. Так как это метод для внутреннего пользования, он не требует токен.
-## Следующие методы требуют наличия jwt токена в Headers
-Вид следующий: Authorization: Bearer \<token>
-### Отправить выражение:
+The agent is considered unavailable if a minute has passed since the last heartbeat. If no agent is available, the expressions are not sent for calculation. taskCount - the number of operations currently being calculated. Since this is a method for internal use, it does not require a token.
+## The following methods require a jwt token in Headers
+The view is as follows: Authorization: Bearer \<token>
+### Send an expression:
 POST `http://localhost:8080/addExpression`
-В этом запросе пользователь может отправить свой id как ключ идемпотентности. Если header:X-Request-Id - пустой, в теле ответа возращается сгенерированный сервером uuid. Иначе используется uuid пользователся. Для создания uuid можно пользоваться этим [сайтом](https://www.uuidgenerator.net/).
-#### Тело запроса:
+In this request, the user can send his id as an idempotence key. If header:X-Request-Id is empty, the server-generated uuid is returned in the response body. Otherwise, the user's uuid is used. To create a uuid, you can use this [site](https://www.uuidgenerator.net).
+#### Request body:
   ```json
   {
       "expression": "2+2/1+2/1"
   }
   ```
-#### Тело ответа:
+#### Response body:
 ```json
 {
     "expressionid": "603b53cb-2175-46bd-a15f-bfba1e1918fb",
@@ -65,9 +121,9 @@ POST `http://localhost:8080/addExpression`
     "status": 0
 }
 ```
-### Получить статус выражения по id:
+### Get the status of an expression by id:
 GET `http://localhost:8080/getExpressionByID?expressionId=<expressionid>`
-#### Тело ответа:
+#### Response body:
 ```json
 {
     "expressionId": "603b53cb-2175-46bd-a15f-bfba1e1918fb",
@@ -75,15 +131,15 @@ GET `http://localhost:8080/getExpressionByID?expressionId=<expressionid>`
     "result": 6
 }
 ```
-#### Значения статус-кодов выражений:
-1. 0 - Выражение было добавлено в бд.
-2. 1 - Выражение было разделено на элементарные операции.
-3. 2 - Выражение было посчитано (result != null)
-4. -1 - Выражение было признано невалидным при вычислении.
+#### Values of expression status codes:
+1. 0 - The expression was added to the database.
+2. 1 - The expression was divided into elementary operations.
+3. 2 - The expression was calculated (result != null)
+4. -1 - The expression was invalidated during calculation.
 
-### Получить все выражения в бд:
+### Get all expressions in the database:
 GET `http://localhost:8080/getExpressionsList`
-#### Тело ответа:
+#### Response body:
 ```json
 [
     {
@@ -106,10 +162,10 @@ GET `http://localhost:8080/getExpressionsList`
     }
 ]
 ```
-### Установить время расчёта одной операции:
-POST `http://localhost:8080/setOperationsTimeout`
-В этом запросе 
-#### Тело запроса:
+### Set the calculation time of a single operation:
+POST `http://localhost:8080/setOperationsTimeout `
+In this request 
+#### Request body:
   ```json
 {
     "*": 3,
@@ -118,15 +174,15 @@ POST `http://localhost:8080/setOperationsTimeout`
     "/": 10
 }
   ```
-Тело может содержать произвольное количество операций (от 0 до 4). Если данных о какой-либо операции нет в redis, то для этой операции ставится значение по умолчанию (10 секунд). Таймаут в секундах.
-#### Тело ответа:
+The body can contain any number of operations (from 0 to 4). If there is no data about any operation in redis, then the default value is set for this operation (10 seconds). Timeout in seconds.
+#### Response body:
 ```
 OK
 ```
-### Получить время расчёта одной операции:
+### Get the calculation time of one operation:
 GET `http://localhost:8080/getOperationsTimeout`
-В этом запросе 
-#### Тело ответа:
+In this request 
+#### Response body:
   ```json
 {
     "*": 3,
@@ -136,14 +192,14 @@ GET `http://localhost:8080/getOperationsTimeout`
 }
   ```
 
-## Спецификации:
-1. [Критерии](/docs/criteria.md)
-## Нет frontend
+## Specifications:
+1. [Criteria](/docs/criteria.md)
+## No frontend
 
-Для более удобного ознакомления с системой, следует использовать [postman](https://www.postman.com/downloads/)
+For a more convenient introduction to the system, you should use [postman](https://www.postman.com/downloads)
 [Postman file](docs/Distibuted%20calculation.postman_collection.json).
 
-# Общая схема системы
+# The general scheme of the system
 ![image](docs/system%20scheme.svg)
-# Схема базы данных
-![image](docs/database%20struct.svg)
+# Database schema
+![image](docs/database_struct.svg)
