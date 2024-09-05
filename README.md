@@ -7,6 +7,8 @@
 * Redis
 * Docker
 * Docker-compose
+* OpenAPI
+* Swagger
 
 ## Description
 
@@ -106,7 +108,9 @@ The agent is considered unavailable if a minute has passed since the last heartb
 The view is as follows: Authorization: Bearer \<token>
 ### Send an expression:
 POST `http://localhost:8080/addExpression`
+
 In this request, the user can send his id as an idempotence key. If header:X-Request-Id is empty, the server-generated uuid is returned in the response body. Otherwise, the user's uuid is used. To create a uuid, you can use this [site](https://www.uuidgenerator.net).
+
 #### Request body:
   ```json
   {
@@ -126,9 +130,10 @@ GET `http://localhost:8080/getExpressionByID?expressionId=<expressionid>`
 #### Response body:
 ```json
 {
-    "expressionId": "603b53cb-2175-46bd-a15f-bfba1e1918fb",
+    "expressionid": "6c992cda-5565-4123-a004-4bd645b5de63",
+    "expression": "((9*7)-(4/2)+(6*3)/(15-3)*(10+2))+(5-2)/(8*2)*(7/1)",
     "status": 2,
-    "result": 6
+    "result": 80.3125
 }
 ```
 #### Values of expression status codes:
@@ -137,7 +142,7 @@ GET `http://localhost:8080/getExpressionByID?expressionId=<expressionid>`
 3. 2 - The expression was calculated (result != null)
 4. -1 - The expression was invalidated during calculation.
 
-### Get all expressions in the database:
+### Getting information about all expressions of the current user in the database:
 GET `http://localhost:8080/getExpressionsList`
 #### Response body:
 ```json
@@ -164,7 +169,6 @@ GET `http://localhost:8080/getExpressionsList`
 ```
 ### Set the calculation time of a single operation:
 POST `http://localhost:8080/setOperationsTimeout `
-In this request 
 #### Request body:
   ```json
 {
@@ -181,7 +185,6 @@ OK
 ```
 ### Get the calculation time of one operation:
 GET `http://localhost:8080/getOperationsTimeout`
-In this request 
 #### Response body:
   ```json
 {
@@ -195,9 +198,9 @@ In this request
 ## Specifications:
 1. [Criteria](/docs/criteria.md)
 ## No frontend
-
 For a more convenient introduction to the system, you should use [postman](https://www.postman.com/downloads)
 [Postman file](docs/Distibuted%20calculation.postman_collection.json).
+Also available OpenAPI [configuration file](docs/openapi.yaml).
 
 # The general scheme of the system
 ![image](docs/system%20scheme.svg)

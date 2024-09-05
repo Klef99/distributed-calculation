@@ -60,7 +60,7 @@ func (h *Handler) AddExpression(w http.ResponseWriter, r *http.Request) {
 	if expressionid == "" {
 		expressionid = uuid.NewString()
 	}
-	_, _, err = h.conn.GetExpressionByID(nctx, expressionid)
+	_, _, _, err = h.conn.GetExpressionByID(nctx, expressionid)
 	if err == nil {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("Expression exist in database"))
@@ -104,14 +104,18 @@ func (h *Handler) GetExpressionByID(w http.ResponseWriter, r *http.Request) {
 	exprId := r.URL.Query().Get("expressionId")
 	userid, _ := strconv.Atoi(r.Header.Get("userid"))
 	nctx := context.WithValue(r.Context(), "userid", userid)
-	result, status, err := h.conn.GetExpressionByID(nctx, exprId)
+	expression, result, status, err := h.conn.GetExpressionByID(nctx, exprId)
 	res := struct {
-		ExpressionId string      `json:"expressionId"`
-		Status       int32       `json:"status"`
-		Res          interface{} `json:"result"`
-	}{Res: result, ExpressionId: exprId, Status: status}
+		Uuid   string      `json:"expressionid"`
+		Expr   string      `json:"expression"`
+		Status int32       `json:"status"`
+		Result interface{} `json:"result"`
+	}{Result: result, Uuid: exprId, Status: status, Expr: expression}
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
+		if err.Error() == "expression didn't exist" {
+			w.Write([]byte(err.Error()))
+		}
 		slog.Warn(err.Error())
 		return
 	}
@@ -210,6 +214,7 @@ func (h *Handler) Registration(w http.ResponseWriter, r *http.Request) {
 	err := decoder.Decode(&user)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte("Wrong format of request body"))
 		slog.Warn(err.Error())
 		return
 	}
@@ -222,6 +227,7 @@ func (h *Handler) Registration(w http.ResponseWriter, r *http.Request) {
 	err = h.conn.Registration(context.Background(), user.Login, string(hashedBytes))
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte("User already exist or registration failed"))
 		slog.Warn(err.Error())
 		return
 	}
@@ -254,18 +260,24 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 	err := decoder.Decode(&user)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte("Wrong format of request body"))
 		slog.Warn(err.Error())
 		return
 	}
 	isLogin, err := h.conn.Login(context.Background(), user.Login, user.Password)
-	if err != nil && !isLogin {
+	if !isLogin {
+		w.WriteHeader(http.StatusUnauthorized)
+		w.Write([]byte("Invalid username or password"))
+		return
+	}
+	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		slog.Warn(err.Error())
 		w.Write([]byte("Failed to log in."))
 		return
 	}
 	newToken, err := jwtgenerator.GenerateToken(user.Login)
-	if err != nil && !isLogin {
+	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		slog.Warn(err.Error())
 		w.Write([]byte("Unable to create."))

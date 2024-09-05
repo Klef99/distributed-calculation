@@ -46,7 +46,7 @@ func Run() {
 	// 		panic("unable to set timeouts")
 	// 	}
 	// }
-	// Созданим структуры-провайдоры запросов к бд и агентам
+	// Создадим структуры-провайдоры запросов к бд и агентам
 	h := handlers.New(conn, RedisConn)
 	d := distributor.NewDistributor(RedisConn, conn)
 	// Запустим операции
@@ -64,7 +64,7 @@ func Run() {
 	router.HandleFunc("/login", h.Login)
 	router.HandleFunc("/setOperationsTimeout", h.AuthMW(h.SetOperationsTimeout))
 	router.HandleFunc("/getOperationsTimeout", h.AuthMW(h.GetOperationsTimeout))
-	// Внутренние операции, недоступные для пользователя
+	// Внутренние операции, не предназначенные для пользователя
 	router.HandleFunc("/getHearthbeat", h.GetHearthbeat)
 	router.HandleFunc("/getWorkersStatus", h.GetWorkersStatus)
 	err := http.ListenAndServe(":8080", router)

@@ -101,32 +101,33 @@ func (c *Connection) GetExpressions(ctx context.Context) ([]struct {
 	return exprs, nil
 }
 
-func (c *Connection) GetExpressionByID(ctx context.Context, expressionid string) (interface{}, int32, error) {
+func (c *Connection) GetExpressionByID(ctx context.Context, expressionid string) (string, interface{}, int32, error) {
 	// ctxWithT, cancel := context.WithTimeout(ctx, time.Second*2)
 	// defer cancel()
-	query := `SELECT result, status FROM expressions where expressionid = @expressionId and userid = @userid`
+	query := `SELECT expression, result, status FROM expressions where expressionid = @expressionId and userid = @userid`
 	args := pgx.NamedArgs{
 		"expressionId": expressionid,
 		"userid":       ctx.Value("userid"),
 	}
 	rows, err := c.conn.Query(ctx, query, args)
 	if err != nil {
-		return "", 0, fmt.Errorf("unable to query expression: %w", err)
+		return "", "", 0, fmt.Errorf("unable to query expression: %w", err)
 	}
 	defer rows.Close()
+	var expression string
 	var result interface{}
 	var status interface{}
 	for rows.Next() {
-		err := rows.Scan(&result, &status)
+		err := rows.Scan(&expression, &result, &status)
 		if err != nil {
-			return "", 0, fmt.Errorf("unable to scan row: %w", err)
+			return "", "", 0, fmt.Errorf("unable to scan row: %w", err)
 		}
 	}
 	if status == nil {
-		return "", 0, fmt.Errorf("expression didn't exist")
+		return "", "", 0, fmt.Errorf("expression didn't exist")
 	}
 	st, _ := status.(int32)
-	return result, st, nil
+	return expression, result, st, nil
 }
 
 func (c *Connection) GetNotPartitionExpressions(ctx context.Context) ([][]string, error) {

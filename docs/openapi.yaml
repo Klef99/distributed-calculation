@@ -1,0 +1,287 @@
+openapi: 3.1.0
+info:
+  title: Distributed Calculation
+  description: >
+    The user wants to calculate arithmetic expressions. He enters the string 2 + 2 * 2 and wants the answer to be 6. But our addition and multiplication operations (also division and subtraction) take a “very, very” long time to complete. Therefore, the option in which the user makes an http request and receives the result as a response is impossible. Moreover: the calculation of each such operation in our “alternative reality” takes “giant” computing power. Accordingly, we must be able to perform each action separately and we can scale this system by adding computing power to our system in the form of new “machines”. Therefore, when a user sends an expression, he receives an expression identifier in response and can, at some periodicity, check with the server whether the expression has been counted? If the expression is finally evaluated, he will get the result. Remember that some parts of an arphimetic expression can be evaluated in parallel.
+  version: "1.0"
+  contact:
+    name: "Github"
+    url: "https://github.com/Klef99/distributed-calculation"
+  license:
+    name: "CC Attribution-ShareAlike 4.0 (CC BY-SA 4.0)"
+    url: "https://openweathermap.org/price"
+servers:
+- url: "http://localhost:8080/"
+  description: "A locally launched project"
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT  # optional, for documentation purposes only
+  parameters: 
+    "expressionIdParam":
+      name: expressionId
+      in: query
+      description: "ID of expression"
+      schema:
+        type: string
+  schemas: 
+    "Credinals":
+      required: 
+        - login
+        - password
+      type: object
+      properties: 
+        login:
+          type: string
+          examples:
+            - "klef99"
+        password:
+          type: string
+          examples: 
+             - "123abCC"
+    "ExpressionStatus":
+      type: object
+      properties:
+        expressionid:
+          type: string
+        expression:
+          type: string
+        status:
+          type: integer
+        result:
+          type: number
+    "TimeoutsSchema":
+      type: object
+      properties:
+        '+':
+          type: integer
+        '-':
+          type: integer
+        '*':
+          type: integer
+        '/':
+          type: integer
+
+paths:
+  "/register":
+    post:
+      operationId: register
+      tags:
+         - "Authorization"
+      requestBody: 
+        content: 
+          application/json:
+            schema:
+               $ref: "#/components/schemas/Credinals"
+      responses:
+        200:
+          description: "Successful registration"
+          content:
+            text/plain: 
+              schema: 
+                type: string
+                examples: 
+                  - "OK"
+        500:
+          description: "Incorrect input data format"
+  "/login":
+    post:
+      operationId: login
+      tags:
+        - "Authorization"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Credinals"
+      responses:
+        200:
+          description: "Successful login"
+          content:
+            text/plain: 
+              schema: 
+                type: string
+                examples: 
+                  - "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3MjU0Njg2MTksImlhdCI6MTcyNTQ2NTAxOSwibmFtZSI6ImtsZWY5OSIsIm5iZiI6MTcyNTQ2NTAxOX0.PYGAu0UnH0ckCRYLeAeqnlI18AHn6haytWre96Xv2FA"
+        500:
+          description: "Incorrect input data format"
+        401:
+          description: "Invalid username or password"
+  "/getWorkersStatus":
+    get:
+      tags: 
+        - "Service methods"
+      description: | 
+        The agent is considered unavailable if a minute has passed since the last heartbeat. If no agent is available, the expressions are not sent for calculation. taskCount - the number of operations currently being calculated. Since this is a method for internal use, it does not require a token.
+      responses: 
+        200:
+          description: "Get information about agents"
+          content: 
+            application/json: 
+              schema:
+                type: array
+                examples: 
+                  - workerName: worker1
+                    status: "OK"
+                    taskCount: "2"
+        500:
+          description: "Unexpected server error"
+  "/addExpression":
+    post:
+      tags:
+        - "Core methods"
+      description: |
+        In this request, the user can send his id as an idempotence key. If header:X-Request-Id is empty, the server-generated uuid is returned in the response body. Otherwise, the user's uuid is used. To create a uuid, you can use this [site](https://www.uuidgenerator.net/).
+      security: 
+        - bearerAuth: []
+      requestBody: 
+        content:
+          application/json: 
+            schema: 
+              type: object
+              properties: 
+                expression:
+                  type: string
+              examples:
+                - expression: "2+2/1+2/1"
+      responses: 
+        200:
+          description: "Returns the expression parameters"
+          content:
+            application/json: 
+              schema:
+                type: array
+                properties: 
+                  expressionid:
+                    type: string
+                  expression:
+                    type: string
+                  status:
+                    type: integer
+                examples: 
+                  - expressionid: "603b53cb-2175-46bd-a15f-bfba1e1918fb"
+                    expression: "2+2/1+2/1"
+                    status: 0
+        500:
+          description: "Unexpected server error"
+        401:
+          description: "Unauthorized (wrong JWT-token)"
+  "/getExpressionByID":
+    get:
+      tags:
+        - "Core methods"
+      description: "Get the status of an expression by id"
+      parameters:
+        - $ref: '#/components/parameters/expressionIdParam'
+      security:
+        - bearerAuth: []
+      responses:
+        200:
+          description: |
+            Get expression status and result\
+             Values of expression status codes:\
+              0 - The expression was added to the database.\
+              1 - The expression was divided into elementary operations.\
+              2 - The expression was calculated (result != null)\
+              -1 - The expression was invalidated during calculation.
+          content:
+            application/json: 
+              schema:
+                $ref: '#/components/schemas/ExpressionStatus'
+                examples: 
+                  - "expressionid": "6c992cda-5565-4123-a004-4bd645b5de63"
+                    "expression": "((9*7)-(4/2)+(6*3)/(15-3)*(10+2))+(5-2)/(8*2)*(7/1)"
+                    "status": 2
+                    "result": 80.3125
+        500:
+          description: "Unexpected server error"
+        401:
+          description: "Unauthorized (wrong JWT-token)"
+  "/getExpressionsList":
+    get:
+      tags:
+        - "Core methods"
+      description: "Getting information about all expressions of the current user in the database"
+      security:
+        - bearerAuth: []
+      responses: 
+        200:
+          description: "List of expressions"
+          content: 
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ExpressionStatus'
+                example: 
+                  - "expressionid": "edd8d169-7e60-41ea-8d3c-e8766718461a"
+                    "expression": "(1+1))"
+                    "status": -1
+                    "result": null
+
+                  - "expressionid": "d4be595a-f538-4132-a14b-efe7784d5aa5"
+                    "expression": "((5*3)+(8/2)-(7*4)/(6-3)*(9+1)/(2*5)-(6/2)+(3*2)+(4-1)/(9*1)*(2+7)/(8-6)*(5/5))"
+                    "status": 2
+                    "result": 14.166666666666666
+
+                  - "expressionid": "603b53cb-2175-46bd-a15f-bfba1e1918fb"
+                    "expression": "2+2/1+2/1"
+                    "status": 2
+                    "result": 6
+        500:
+          description: "Unexpected server error"
+        401:
+          description: "Unauthorized (wrong JWT-token)"
+
+  "/setOperationsTimeout":
+    post:
+      description: "The body can contain any number of operations (from 0 to 4). If there is no data about any operation in redis, then the default value is set for this operation (10 seconds). Timeout in seconds."
+      tags:
+        - "Core methods"
+      security:
+        - bearerAuth: []
+      requestBody: 
+        content:
+          application/json:
+            schema:
+              type: object 
+              $ref: '#/components/schemas/TimeoutsSchema'
+              examples:
+                - "*": 3
+                  "+": 5
+                  "-": 5
+                  "/": 10
+      responses:
+        200:
+          description: OK
+        500:
+          description: "Unexpected server error"
+        401:
+          description: "Unauthorized (wrong JWT-token)"
+  "/getOperationsTimeout":
+    get:
+      description: "Get the calculation time of one operation"
+      tags:
+        - "Core methods"
+      security:
+        - bearerAuth: []
+      responses:
+        200:
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object 
+                $ref: '#/components/schemas/TimeoutsSchema'
+                examples:
+                  - "*": 3
+                    "+": 5
+                    "-": 5
+                    "/": 10
+        500:
+          description: "Unexpected server error"
+        401:
+          description: "Unauthorized (wrong JWT-token)"
