@@ -1,4 +1,6 @@
 # Distributed arithmetic expression evaluator
+[![Swagger](https://img.shields.io/badge/-Swagger-%23Clojure?style=for-the-badge&logo=swagger&logoColor=white)](https://klef99.github.io/distributed-calculation-swagger/)
+<!-- [<img src="https://validator.swagger.io/validator?url={https://github.com/Klef99/distributed-calculation/raw/master/docs/openapi.yaml}">](./docs/openapi.yaml) -->
 
 ## Technology stack
 
