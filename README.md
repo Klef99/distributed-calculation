@@ -200,9 +200,8 @@ GET `http://localhost:8080/getOperationsTimeout`
 ## Specifications:
 1. [Criteria](/docs/criteria.md)
 ## No frontend
-For a more convenient introduction to the system, you should use [postman](https://www.postman.com/downloads)
-[Postman file](docs/Distibuted%20calculation.postman_collection.json).
-Also available OpenAPI [configuration file](docs/openapi.yaml).
+For a more convenient introduction to the system, you should use [postman](https://www.postman.com/downloads) [Postman file](docs/Distibuted%20calculation.postman_collection.json).
+Also available OpenAPI [configuration file](docs/openapi.yaml). [Swagger instance](https://klef99.github.io/distributed-calculation-swagger/)
 
 # The general scheme of the system
 ![image](docs/system%20scheme.svg)
